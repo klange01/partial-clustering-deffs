@@ -97,7 +97,7 @@ prep_data = function(dat, link="linear"){
 
 plot_de = function(data, x, y, group, xlab=NULL, ylab=NULL, title=NULL, subtitle=NULL, caption=NULL, ylim=c(NA,NA)) {
   gg = ggplot(data = data, aes(x = x, y = y, group = group, colour = group)) +
-    geom_line(aes(linetype = group), linewidth = 1) +
+    geom_line(aes(linetype = group), linewidth = 0.8) +
     scale_linetype_manual(name = "",
                           labels = c("GEE-ind, Cluster rand", "GEE-ind, Individual rand",
                                      "GEE-exch, Cluster rand", "GEE-exch, Individual rand"),
@@ -109,7 +109,7 @@ plot_de = function(data, x, y, group, xlab=NULL, ylab=NULL, title=NULL, subtitle
     labs(x = xlab, y = ylab, title = title, subtitle = subtitle, caption = caption) +
     scale_y_continuous(limits = c(ylim[1], ylim[2])) +
     theme_bw() +
-    theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 10),
+    theme(legend.key.size = unit(1.5, "cm"), legend.text = element_text(size = 9),
           axis.text.x = element_text(size = 10),
           axis.text.y = element_text(size = 10))
   return(gg)
@@ -142,6 +142,40 @@ plot1B = plot_de(data1B_deffs, x=data1B_deffs$rho, y=data1B_deffs$deff, group=da
 # title = "Figure 1: Design effects for continuous outcomes by randomisation method and GEE working correlation structure"
 fig1 = plot1A + plot1B + plot_layout(guides = "collect") +
   plot_annotation(title = "") & theme(legend.position="bottom")
+ggsave("output/continuous.tiff",height=8.5,width=9.75,unit="in",dpi=800)
+
+## Supp Figure 1: Logit link - varying ICC
+
+# Panel A
+rho = seq(0, 0.995, by=0.0002)
+gamma1 = 0.70
+gamma2 = 0.15
+gamma3 = 0.10
+gamma4 = 0.05
+pi_C = 0.4
+pi_I = 0.3
+dataS1A = data.frame(rho, gamma1, gamma2, gamma3, gamma4, pi_C, pi_I)
+dataS1A_deffs = prep_data(dataS1A, link = "logit")
+plotS1A = plot_de(dataS1A_deffs, x=dataS1A_deffs$rho, y=dataS1A_deffs$deff, group=dataS1A_deffs$model, ylim=c(0, 2.5),
+                 xlab="ICC", ylab="Design effect", subtitle="A", caption="")
+
+# Panel B
+rho = seq(0, 0.995, by=0.0002)
+gamma1 = 0.25
+gamma2 = 0.25
+gamma3 = 0.25
+gamma4 = 0.25
+pi_C = 0.4
+pi_I = 0.3
+dataS1B = data.frame(rho, gamma1, gamma2, gamma3, gamma4, pi_C, pi_I)
+dataS1B_deffs = prep_data(dataS1B, link = "logit")
+plotS1B = plot_de(dataS1B_deffs, x=dataS1B_deffs$rho, y=dataS1B_deffs$deff, group=dataS1B_deffs$model, ylim=c(0, 2.5),
+                 xlab="ICC", ylab="Design effect", subtitle="B", caption="")
+
+# title = "Supp Figure 1: Design effects for binary outcomes with a logit link by randomisation method and GEE working correlation structure"
+figS1 = plotS1A + plotS1B + plot_layout(guides = "collect") +
+  plot_annotation(title = "") & theme(legend.position="bottom")
+ggsave("output/logit-ICC.tiff",height=8.5,width=9.75,unit="in",dpi=800)
 
 ## Figure 2: Logit link - varying OR when pC=0.4
 
@@ -208,40 +242,7 @@ plot2D = plot_de(data2D_plot, x=data2D_plot$or, y=data2D_plot$deff, group=data2D
 # title = "Figure 2: Design effects for binary outcomes with a logit link by randomisation method and GEE working correlation structure"
 fig2 = plot2A + plot2B + plot2C + plot2D + plot_layout(guides = "collect") +
   plot_annotation(title = "") & theme(legend.position="bottom")
-
-
-## Supp Figure 1: Logit link - varying ICC
-
-# Panel A
-rho = seq(0, 0.995, by=0.0002)
-gamma1 = 0.70
-gamma2 = 0.15
-gamma3 = 0.10
-gamma4 = 0.05
-pi_C = 0.4
-pi_I = 0.3
-dataS1A = data.frame(rho, gamma1, gamma2, gamma3, gamma4, pi_C, pi_I)
-dataS1A_deffs = prep_data(dataS1A, link = "logit")
-plotS1A = plot_de(dataS1A_deffs, x=dataS1A_deffs$rho, y=dataS1A_deffs$deff, group=dataS1A_deffs$model, ylim=c(0, 2.5),
-                 xlab="ICC", ylab="Design effect", subtitle="A", caption="")
-
-# Panel B
-rho = seq(0, 0.995, by=0.0002)
-gamma1 = 0.25
-gamma2 = 0.25
-gamma3 = 0.25
-gamma4 = 0.25
-pi_C = 0.4
-pi_I = 0.3
-dataS1B = data.frame(rho, gamma1, gamma2, gamma3, gamma4, pi_C, pi_I)
-dataS1B_deffs = prep_data(dataS1B, link = "logit")
-plotS1B = plot_de(dataS1B_deffs, x=dataS1B_deffs$rho, y=dataS1B_deffs$deff, group=dataS1B_deffs$model, ylim=c(0, 2.5),
-                 xlab="ICC", ylab="Design effect", subtitle="B", caption="")
-
-# title = "Supp Figure 1: Design effects for binary outcomes with a logit link by randomisation method and GEE working correlation structure"
-figS1 = plotS1A + plotS1B + plot_layout(guides = "collect") +
-  plot_annotation(title = "") & theme(legend.position="bottom")
-
+ggsave("output/logit-OR04.tiff",height=8.5,width=9.75,unit="in",dpi=800)
 
 ## Supp Figure 2: Logit link - varying OR when pC=0.1
 
@@ -308,7 +309,7 @@ plotS2D = plot_de(dataS2D_plot, x=dataS2D_plot$or, y=dataS2D_plot$deff, group=da
 # title = "Supp Figure 2: Design effects for binary outcomes with a logit link by randomisation method and GEE working correlation structure"
 figS2 = plotS2A + plotS2B + plotS2C + plotS2D + plot_layout(guides = "collect") +
   plot_annotation(title = "") & theme(legend.position="bottom")
-
+ggsave("output/logit-OR01.tiff",height=8.5,width=9.75,unit="in",dpi=800)
 
 ## Supp Figure 3: Log link - varying ICC
 
@@ -341,7 +342,7 @@ plotS3B = plot_de(dataS3B_deffs, x=dataS3B_deffs$rho, y=dataS3B_deffs$deff, grou
 # title = "Supp Figure 3: Design effects for binary outcomes with a log link by randomisation method and GEE working correlation structure"
 figS3 = plotS3A + plotS3B + plot_layout(guides = "collect") +
   plot_annotation(title = "") & theme(legend.position="bottom")
-
+ggsave("output/log-ICC.tiff",height=8.5,width=9.75,unit="in",dpi=800)
 
 ## Supp Figure 4: Log link - varying RR when pC=0.4
 
@@ -409,7 +410,7 @@ plotS4D = plot_de(dataS4D_plot, x=dataS4D_plot$rr, y=dataS4D_plot$deff, group=da
 figS4 = plotS4A + plotS4B + plotS4C + plotS4D + plot_layout(guides = "collect") +
   plot_annotation(title = "") &
   theme(legend.position="bottom")
-
+ggsave("output/log-RR04.tiff",height=8.5,width=9.75,unit="in",dpi=800)
 
 ## Supp Figure 5: Log link - varying RR when pC=0.1
 
@@ -476,3 +477,4 @@ plotS5D = plot_de(dataS5D_plot, x=dataS5D_plot$rr, y=dataS5D_plot$deff, group=da
 # title = "Supp Figure 5: Design effects for binary outcomes with a log link by randomisation method and GEE working correlation structure"
 figS5 = plotS5A + plotS5B + plotS5C + plotS5D + plot_layout(guides = "collect") +
   plot_annotation(title = "") & theme(legend.position="bottom")
+ggsave("output/log-RR01.tiff",height=8.5,width=9.75,unit="in",dpi=800)

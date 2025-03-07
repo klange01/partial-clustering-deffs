@@ -1,6 +1,14 @@
 ## Validation of GEE design effects for partially clustered trials
 ## Kylie Lange (kylie.lange@adelaide.edu.au)
 
+# Validation of theoretically derived design effects
+
+## BINARY OUTCOME
+
+# Simulation of partially clustered data
+# Outcome: binary (logit link), binary (log link)
+# Treatment group allocation (2 groups): cluster randomisation, individual randomisation
+
 # Sensitivity analysis where the total number of cluster is fixed,
 # but the number of clusters of each size are randomly generated from multinomial distribution.
 
@@ -17,8 +25,6 @@ library(officer)
 
 source("R/partial_clus_functions.R")
 source("R/partial_clus_deffs.R")
-
-## BINARY OUTCOME
 
 # simulation parameters
 parameters = readxl::read_xlsx("R/scenarios_bin_multinom.xlsx")
@@ -87,29 +93,8 @@ sims=10000
 datalist = map(param_list, simulate_randomclusters, nsims=sims, outcome="binary")
 saveRDS(datalist, file="simdata/binary-multinom/datalist.rds")
 
-# summarise the trial designs to confirm simulation has worked as expected
-design_summaries = modify_depth(datalist, .depth=2, ~summarise_trial(.x))
-design_summaries = bind_rows(map(design_summaries, bind_rows))
-# calculate the delta proportions for each dataset
-design_summaries = design_summaries %>% 
-  mutate(delta1 = M1/(M1+M2+M3+M4),
-         delta2 = M2/(M1+M2+M3+M4),
-         delta3 = M3/(M1+M2+M3+M4),
-         delta4 = M4/(M1+M2+M3+M4))
-saveRDS(design_summaries, file="simdata/binary-multinom/design_summaries.rds")
-render("scripts/data_summaries_sens.Rmd")
-
-# check marginal prevalence of outcome within each treatment group
-prev_summaries = modify_depth(datalist, .depth=2, ~summarise_bin(.x))
-prev_summaries = bind_rows(map(prev_summaries, bind_rows))
-saveRDS(prev_summaries, file="simdata/binary-multinom/prev_summaries.rds")
-render("scripts/prev_summaries.Rmd")
-
 # analyse each dataset
-tm = proc.time()
 model_results = modify_depth(datalist, .depth=2, ~fit_binary_models(.x))
-etm = proc.time() - tm
-etm
 model_results = bind_rows(map(model_results, bind_rows))
 
 # use rsimsum::dropbig() to identify non-converged models
@@ -122,10 +107,6 @@ model_results = model_results %>%
   rename(rand_method = rand_method.x)
 saveRDS(model_results, file="simdata/binary-multinom/model_results.rds")
 
-# summarise the analysis model results
-render("scripts/model_summaries.Rmd", output_file = "model_summaries_logit_sens.html", params = list(outcome = "binary", link="logit"))
-render("scripts/model_summaries.Rmd", output_file = "model_summaries_log_sens.html", params = list(outcome = "binary", link="log"))
-
 # only report results from models that converged
 model_results_conv = model_results %>% filter(.dropbig == FALSE)
 
@@ -137,8 +118,6 @@ summ = model_results_conv  %>%
   filter(model != "glm") %>% 
   mutate(deff_obs = var_b1 / indp_var,
          deff_reldiff  = (deff_obs-deff_exp)/deff_exp*100)
-render("scripts/deff_summaries.Rmd", output_file = "deff_summaries_logit_sens.html", params = list(outcome = "binary", link="logit"))
-render("scripts/deff_summaries.Rmd", output_file = "deff_summaries_log_sens.html", params = list(outcome = "binary", link="log"))
 
 # summaries for each scenario
 
@@ -182,15 +161,19 @@ model_table = flextable(model_res_wide[,1:6]) %>%
 
 res_logit = res %>% filter(link == "logit")
 res_wide_logit = convert_wide_sens(res_logit)
-table3 = deff_table(res_wide_logit, numsim = sims,
-                    caption = "Table 3: Observed and expected design effects for a binary outcome with a logit link")
-table4 = power_table(res_wide_logit, caption = "Table 4: Observed and expected power for a binary outcome with a logit link")
+tableS12 = deff_table(res_wide_logit, numsim = sims,
+                    caption = "Supplementary Table 12: Observed and expected design effects for a binary outcome with a logit link,
+                    with a varying number of clusters of each size")
+tableS13 = power_table(res_wide_logit, caption = "Supplementary Table 13: Observed and expected power for a binary outcome with a logit link,
+                       with a varying number of clusters of each size")
 
 res_log = res %>% filter(link == "log")
 res_wide_log = convert_wide_sens(res_log)
-table5 = deff_table(res_wide_log, numsim = sims,
-                    caption = "Table 5: Observed and expected design effects for a binary outcome with a log link")
-table6 = power_table(res_wide_log, caption = "Table 6: Observed and expected power for a binary outcome with a log link")
+tableS14 = deff_table(res_wide_log, numsim = sims,
+                    caption = "Supplementary Table 14: Observed and expected design effects for a binary outcome with a log link,
+                    with a varying number of clusters of each size")
+tableS15 = power_table(res_wide_log, caption = "Supplementary Table 15: Observed and expected power for a binary outcome with a log link,
+                       with a varying number of clusters of each size")
 
 # write output file of results
 
@@ -198,13 +181,13 @@ read_docx() %>%
   body_add_gg(deff_plot_logit) %>%
   body_add_gg(deff_plot_log) %>% 
   body_add_break() %>% 
-  body_add_flextable(table3) %>%
+  body_add_flextable(tableS12) %>%
   body_add_break() %>% 
-  body_add_flextable(table4) %>%
+  body_add_flextable(tableS13) %>%
   body_add_break() %>% 
-  body_add_flextable(table5) %>%
+  body_add_flextable(tableS14) %>%
   body_add_break() %>% 
-  body_add_flextable(table6) %>%
+  body_add_flextable(tableS15) %>%
   body_add_break() %>% 
   body_add_flextable(model_table) %>%
   print(target="output/deff_results_bin_multinom.docx")

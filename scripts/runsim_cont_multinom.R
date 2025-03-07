@@ -1,6 +1,14 @@
 ## GEE design effects for partially clustered trials
 ## Kylie Lange (kylie.lange@adelaide.edu.au)
 
+# Validation of theoretically derived design effects
+
+## CONTINOUS OUTCOME
+
+# Simulation of partially clustered data
+# Outcome: continuous (linear link)
+# Treatment group allocation (2 groups): cluster randomisation, individual randomisation
+
 # Sensitivity analysis where the total number of cluster is fixed,
 # but the number of clusters of each size are randomly generated from multinomial distribution.
 
@@ -16,8 +24,6 @@ library(officer)
 
 source("R/partial_clus_functions.R")
 source("R/partial_clus_deffs.R")
-
-## CONTINOUS OUTCOME
 
 # simulation parameters
 parameters = readxl::read_xlsx("R/scenarios_cont_multinom.xlsx")
@@ -59,41 +65,8 @@ sims=10000
 datalist = map(param_list, simulate_randomclusters, nsims=sims, outcome="cont")
 saveRDS(datalist, file="simdata/cont-multinom/datalist.rds")
 
-# summarise the trial designs to confirm simulation has worked as expected
-design_summaries = modify_depth(datalist, .depth=2, ~summarise_trial(.x))
-design_summaries = bind_rows(map(design_summaries, bind_rows))
-# calculate the delta proportions for each dataset
-design_summaries = design_summaries %>% 
-  mutate(delta1 = M1/(M1+M2+M3+M4),
-         delta2 = M2/(M1+M2+M3+M4),
-         delta3 = M3/(M1+M2+M3+M4),
-         delta4 = M4/(M1+M2+M3+M4))
-saveRDS(design_summaries, file="simdata/cont-multinom/design_summaries.rds")
-render("scripts/data_summaries_sens.Rmd")
-
-# additional exploration of generated sample sizes
-ex1 = design_summaries %>% filter(N == 240)
-ex1summ = ex1 %>% 
-  group_by(scenario_id) %>% 
-  summarise(n = n(),
-            delta1_med = median(delta1),
-            delta2_med = median(delta2),
-            delta3_med = median(delta3),
-            delta4_med = median(delta4),
-            delta1_min = min(delta1),
-            delta2_min = min(delta2),
-            delta3_min = min(delta3),
-            delta4_min = min(delta4),
-            delta1_max = max(delta1),
-            delta2_max = max(delta2),
-            delta3_max = max(delta3),
-            delta4_max = max(delta4))
-
 # analyse each dataset
-tm = proc.time()
 model_results = modify_depth(datalist, .depth=2, ~fit_cont_models(.x))
-etm = proc.time() - tm
-etm
 model_results = bind_rows(map(model_results, bind_rows))
 
 # use rsimsum::dropbig() to identify non-converged models
@@ -104,9 +77,6 @@ model_results = model_results %>%
   left_join(deff_exp, c("scenario_id", "model"), suffix=c("", ".y")) %>% 
   select(-rand_method.y)
 saveRDS(model_results, file="simdata/cont-multinom/model_results.rds")
-
-# summarise the analysis model results
-render("scripts/model_summaries.Rmd", output_file = "model_summaries_cont_sens.html", params = list(outcome = "continuous", link="linear"))
 
 # only report results from models that converged
 model_results_conv = model_results %>% filter(.dropbig == FALSE)
@@ -119,8 +89,6 @@ summ = model_results_conv  %>%
   filter(model != "linreg") %>% 
   mutate(deff_obs      = var_b1 / indp_var,
          deff_reldiff  = (deff_obs-deff_exp)/deff_exp*100)
-render("scripts/deff_summaries.Rmd", output_file = "deff_summaries_cont_sens.html", params = list(outcome = "continuous", link="linear"))
-
 
 # summaries for each scenario
 
@@ -161,18 +129,20 @@ model_table = flextable(model_res_wide[,1:6]) %>%
   fontsize(size=9)
 
 res_wide = convert_wide_sens(res)
-table1 = deff_table(res_wide, numsim = sims,
-                    caption = "Table 1: Observed and expected design effects for a continuous outcome")
-table2 = power_table(res_wide, caption = "Table 2: Observed and expected power for a continuous outcome")
+tableS10 = deff_table(res_wide, numsim = sims,
+                    caption = "Supplementary Table 10: Observed and expected design effects for a continuous outcome,
+                    with a varying number of clusters of each size")
+tableS11 = power_table(res_wide, caption = "Supplementary Table 2: Observed and expected power for a continuous outcome,
+                       with a varying number of clusters of each size")
 
 # write output file of results
 
 read_docx() %>%
   body_add_gg(deff_plot) %>%
   body_add_break() %>% 
-  body_add_flextable(table1) %>%
+  body_add_flextable(tableS10) %>%
   body_add_break() %>% 
-  body_add_flextable(table2) %>%
+  body_add_flextable(tableS11) %>%
   body_add_break() %>% 
   body_add_flextable(model_table) %>%
   print(target="output/deff_results_cont_multinom.docx")

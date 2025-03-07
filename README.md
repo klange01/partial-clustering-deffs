@@ -14,6 +14,5 @@ R code for a simulation study to validate GEE-based design effects for partially
   - runsim_cont.R: Simulation code for continuous outcomes
   - runsim_bin.R: Simulation code for binary outcomes
   - figures.R: Figures of the theoretical design effect functions
-
-
-
+  - runsim_cont_multinom.R: Simulation code for sensitivity analysis 2 for continuous outcomes
+  - runsim_bin_multinom.R: Simulation code for sensitivity analysis 2 for binary outcomes

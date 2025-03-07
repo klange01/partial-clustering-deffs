@@ -9,67 +9,6 @@ generate_seed = function() {
   return(my_seed)
 }
 
-# Calculate the number of clusters of each within-cluster allocation under the
-# assumption of balanced cluster allocation when individual randomisation is used
-# Inputs: cluster size (k), the total number of clusters of that cluster size (Mk)
-# Output: a list of the number of clusters of within-cluster allocations d=0..k
-calc_indalloc = function(k, Mk) {
-  M.tmp = rep(Mk, k+1)
-  M_kd  = M.tmp %>% imap(~ .x*choose(k,.y-1)/2^k)     # M_kd = M_k*C(k,d)/2^k, where d=0..k(=.y-1)
-  return(M_kd)
-}
-
-# Create a dataframe for a specified trial design
-# Under cluster randomisation treatment groups are balanced within cluster size.
-# Under individual randomisation, it creates clusters that exactly match the expected
-# proportions of within-cluster allocation cluster types (ie, the M_kd values are fixed).
-# This requires that the number of clusters of size k is a multiple of 2^k.
-# Inputs: randomisation method, number of clusters of each cluster size
-# Outputs: a dataframe of observation and cluster ids and treatment allocation
-create_trial_exact = function(rand_method, num_clus1, num_clus2, num_clus3, num_clus4) {
-
-  k        = c(1, 2, 3, 4)                                 # cluster sizes
-  M_k      = c(num_clus1, num_clus2, num_clus3, num_clus4) # numbers of clusters of each size
-  num_clus = sum(unlist(M_k))                              # total number of clusters
-
-  if (rand_method == "cluster") {
-    clusters = rep(k, times = M_k)
-    tmt = rep(c(0,1), length = num_clus)   # cluster level assignment is balanced by cluster size as the clusters are in size order
-    dat = data.frame(cluster_id = seq(1:num_clus), clus_size = clusters, tmt)
-    dat = dat %>% uncount(clus_size, .remove = FALSE)   # expand the clusters into observation level data
-    
-  } else if (rand_method == "ind") {
-    M_kd = mapply(calc_indalloc, k, M_k) # the number of clusters of each within-cluster treatment allocation
-    dat = data.frame(clus_size = rep(k, times = k+1), M_kd = unlist(M_kd))
-    dat = dat %>%
-      group_by(clus_size) %>%
-      mutate(t = row_number() - 1,       # number of cluster members assigned to tmt
-             c = clus_size - t) %>%      # number of cluster members assigned to control
-      ungroup() %>% 
-      uncount(M_kd) %>%                  # expand to one row per cluster
-      mutate(cluster_id = seq(1:nrow(.))) %>% 
-      pivot_longer(cols = c('t', 'c'), names_to  = 'tmt', values_to = 'reps') %>% 
-      mutate(tmt = recode(tmt, 't' = 1, 'c' = 0)) %>% 
-      filter(reps != 0) %>% 
-      uncount(reps) %>%                  # expand to observation level data
-      group_by(cluster_id) %>% 
-      mutate(tmt = sample(tmt)) %>%      # shuffle the observations within each cluster
-      ungroup()
-  }
-
-  dat = dat %>%
-    group_by(cluster_id) %>%
-    mutate(withinclus_id = row_number(cluster_id),
-           t = sum(tmt)) %>%
-    ungroup() %>% 
-    split(.$cluster_id) %>%   # the next three lines shuffle the order of the clusters
-    .[sample(names(.))] %>% 
-    bind_rows(.) %>% 
-    mutate(obs_id = seq(1:nrow(.))) %>% 
-    select(obs_id, cluster_id, withinclus_id, clus_size, t, tmt)
-  return(dat)
-}
-
 # Create a dataframe for a specified trial design
 # Under cluster randomisation, treatment groups are balanced within cluster size.
 # Under individual randomisation, treatment groups are balanced within cluster size,
@@ -271,8 +210,6 @@ generate_multiple_datasets = function(sims, params, outcome) {
 # Data and random seeds are saved to file
 simulate = function(params, nsims, outcome) {
   # prep params
-  # TODO: this could call a new checking function that checks that all clus values are integers
-  # TODO: and checks that the params match the outcome type (ie, b0, b1 for cont; p1, p2 for binary) 
   params = params %>% mutate_at(c("num_clus1", "num_clus2", "num_clus3", "num_clus4"), as.integer)
   print('Simulating data with params:')
   print(params)
@@ -520,100 +457,6 @@ fit_binary_models = function(dat) {
   return(res)
 }
   
-###### DATA CHECKING ######
-
-# Create summaries of a simulated dataset that can be use for checking that it has the desired properties
-# Input: a dataset as created by generate_data()
-# Output: a list of summaries including number of obs and number of clusters
-# by cluster size and treatment group
-
-summarise_trial = function(dat) {
-  N = nrow(dat)
-  M1 = n_distinct((dat %>% filter(clus_size == 1))$cluster_id)
-  M2 = n_distinct((dat %>% filter(clus_size == 2))$cluster_id)
-  M3 = n_distinct((dat %>% filter(clus_size == 3))$cluster_id)
-  M4 = n_distinct((dat %>% filter(clus_size == 4))$cluster_id)
-  NC = nrow(dat %>% filter(tmt == 0))
-  NI = nrow(dat %>% filter(tmt == 1))
-  N_C1 = nrow(dat %>% filter((tmt == 0) & (clus_size == 1)))
-  N_I1 = nrow(dat %>% filter((tmt == 1) & (clus_size == 1)))
-  N_C2 = nrow(dat %>% filter((tmt == 0) & (clus_size == 2)))
-  N_I2 = nrow(dat %>% filter((tmt == 1) & (clus_size == 2)))
-  N_C3 = nrow(dat %>% filter((tmt == 0) & (clus_size == 3)))
-  N_I3 = nrow(dat %>% filter((tmt == 1) & (clus_size == 3)))
-  N_C4 = nrow(dat %>% filter((tmt == 0) & (clus_size == 4)))
-  N_I4 = nrow(dat %>% filter((tmt == 1) & (clus_size == 4)))
-  pc_I1 = N_I1 / nrow(dat %>% filter(clus_size == 1)) * 100
-  pc_I2 = N_I2 / nrow(dat %>% filter(clus_size == 2)) * 100
-  pc_I3 = N_I3 / nrow(dat %>% filter(clus_size == 3)) * 100
-  pc_I4 = N_I4 / nrow(dat %>% filter(clus_size == 4)) * 100
-  if (dat$rand_method[1] == "cluster"){
-    rand = 1
-    M_C1 = n_distinct((dat %>% filter((tmt == 0) & (clus_size == 1)))$cluster_id)
-    M_I1 = n_distinct((dat %>% filter((tmt == 1) & (clus_size == 1)))$cluster_id)
-    M_C2 = n_distinct((dat %>% filter((tmt == 0) & (clus_size == 2)))$cluster_id)
-    M_I2 = n_distinct((dat %>% filter((tmt == 1) & (clus_size == 2)))$cluster_id)
-    M_C3 = n_distinct((dat %>% filter((tmt == 0) & (clus_size == 3)))$cluster_id)
-    M_I3 = n_distinct((dat %>% filter((tmt == 1) & (clus_size == 3)))$cluster_id)
-    M_C4 = n_distinct((dat %>% filter((tmt == 0) & (clus_size == 4)))$cluster_id)
-    M_I4 = n_distinct((dat %>% filter((tmt == 1) & (clus_size == 4)))$cluster_id)
-    MC   = n_distinct((dat %>% filter(tmt == 0))$cluster_id)
-    MI   = n_distinct((dat %>% filter(tmt == 1))$cluster_id)
-    summ = c(scenario_id=dat$scenario_id[1], rand_method=rand, index=dat$index[1],
-             N=N, M1=M1, M2=M2, M3=M3, M4=M4, NC=NC, NI=NI,
-             N_C1=N_C1, N_I1=N_I1, N_C2=N_C2, N_I2=N_I2, N_C3=N_C3, N_I3=N_I3, N_C4=N_C4, N_I4=N_I4,
-             pc_I1=pc_I1, pc_I2=pc_I2, pc_I3=pc_I3, pc_I4=pc_I4,
-             M_C1=M_C1, M_I1=M_I1, M_C2=M_C2, M_I2=M_I2, M_C3=M_C3, M_I3=M_I3, M_C4=M_C4, M_I4=M_I4, MC=MC, MI=MI)
-  }
-  else {
-    clus = dat %>% 
-      group_by(cluster_id) %>% 
-      summarise(clus_size = first(clus_size),
-                d = sum(tmt))   # how many cluster members assigned to tmt=1
-    rand = 2
-    pc_c1_d0 = nrow(clus %>% filter((clus_size == 1) & (d == 0))) / nrow(clus %>% filter(clus_size == 1)) * 100
-    pc_c1_d1 = nrow(clus %>% filter((clus_size == 1) & (d == 1))) / nrow(clus %>% filter(clus_size == 1)) * 100
-    pc_c2_d0 = nrow(clus %>% filter((clus_size == 2) & (d == 0))) / nrow(clus %>% filter(clus_size == 2)) * 100
-    pc_c2_d1 = nrow(clus %>% filter((clus_size == 2) & (d == 1))) / nrow(clus %>% filter(clus_size == 2)) * 100
-    pc_c2_d2 = nrow(clus %>% filter((clus_size == 2) & (d == 2))) / nrow(clus %>% filter(clus_size == 2)) * 100
-    pc_c3_d0 = nrow(clus %>% filter((clus_size == 3) & (d == 0))) / nrow(clus %>% filter(clus_size == 3)) * 100
-    pc_c3_d1 = nrow(clus %>% filter((clus_size == 3) & (d == 1))) / nrow(clus %>% filter(clus_size == 3)) * 100
-    pc_c3_d2 = nrow(clus %>% filter((clus_size == 3) & (d == 2))) / nrow(clus %>% filter(clus_size == 3)) * 100
-    pc_c3_d3 = nrow(clus %>% filter((clus_size == 3) & (d == 3))) / nrow(clus %>% filter(clus_size == 3)) * 100
-    pc_c4_d0 = nrow(clus %>% filter((clus_size == 4) & (d == 0))) / nrow(clus %>% filter(clus_size == 4)) * 100
-    pc_c4_d1 = nrow(clus %>% filter((clus_size == 4) & (d == 1))) / nrow(clus %>% filter(clus_size == 4)) * 100
-    pc_c4_d2 = nrow(clus %>% filter((clus_size == 4) & (d == 2))) / nrow(clus %>% filter(clus_size == 4)) * 100
-    pc_c4_d3 = nrow(clus %>% filter((clus_size == 4) & (d == 3))) / nrow(clus %>% filter(clus_size == 4)) * 100
-    pc_c4_d4 = nrow(clus %>% filter((clus_size == 4) & (d == 4))) / nrow(clus %>% filter(clus_size == 4)) * 100
-    summ = c(scenario_id=dat$scenario_id[1], rand_method=rand, index=dat$index[1],
-             N=N, M1=M1, M2=M2, M3=M3, M4=M4, NC=NC, NI=NI,
-             N_C1=N_C1, N_I1=N_I1, N_C2=N_C2, N_I2=N_I2, N_C3=N_C3, N_I3=N_I3, N_C4=N_C4, N_I4=N_I4,
-             pc_I1=pc_I1, pc_I2=pc_I2, pc_I3=pc_I3, pc_I4=pc_I4,
-             pc_c1_d0=pc_c1_d0, pc_c1_d1=pc_c1_d1, pc_c2_d0=pc_c2_d0, pc_c2_d1=pc_c2_d1, pc_c2_d2=pc_c2_d2,
-             pc_c3_d0=pc_c3_d0, pc_c3_d1=pc_c3_d1, pc_c3_d2=pc_c3_d2, pc_c3_d3=pc_c3_d3,
-             pc_c4_d0=pc_c4_d0, pc_c4_d1=pc_c4_d1, pc_c4_d2=pc_c4_d2, pc_c4_d3=pc_c4_d3, pc_c4_d4=pc_c4_d4)
-    }
-  return(summ)
-}
-
-# Create summaries of a simulated dataset that can be used for checking that it has the required properties
-# Input: a dataset as created by generate_data()
-# Output: a list of summaries including the prevalance of outcome in each treatment group
-
-summarise_bin = function(dat) {
-  N   = nrow(dat)
-  NC  = nrow(dat %>% filter(tmt == 0))
-  NI  = nrow(dat %>% filter(tmt == 1))
-  Y0C = nrow(dat %>% filter(tmt == 0 & Y == 0))
-  Y0I = nrow(dat %>% filter(tmt == 1 & Y == 0))
-  Y1C = nrow(dat %>% filter(tmt == 0 & Y == 1))
-  Y1I = nrow(dat %>% filter(tmt == 1 & Y == 1))
-  pC  = Y1C / NC
-  pI  = Y1I / NI
-  summ = c(scenario_id=dat$scenario_id[1], index=dat$index[1],
-           N=N, NC=NC, NI=NI, Y0C=Y0C, Y0I=Y0I, Y1C=Y1C, Y1I=Y1I, pC=pC, pI=pI)
-  return(summ)
-}
 
 ###### REPORTING RESULTS ######
 
@@ -704,6 +547,3 @@ power_table = function(dat, caption = caption){
                            "pwr_obs_exch", "pwr_exp_exch", "pwr_diff_exch"), digits = 2)
   return(tab)
 }
-
-
-

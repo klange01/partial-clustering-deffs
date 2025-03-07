@@ -1,7 +1,7 @@
 ### Design effects based on GEEs for partially clustered trials
 ### Author: Kylie Lange (kylie.lange@adelaide.edu.au)
 
-##### HELPER FUNCTIONS #####
+## Helper functions
 
 # Calculate the total number of obs from the number of clusters
 # Input: a list of the number of clusters of sizes 1..K
@@ -21,8 +21,7 @@ numclus_to_gamma = function(M_k){
   return(gamma)
 }
 
-##### DESIGN EFFECTS #####
-
+## Design effects
 # Inputs: randomisation method ('cluster' or 'ind'), rho, list of proportions gamma_k
 # Output: design effect
 
@@ -201,3 +200,4 @@ calculate_log_exchgee_deff = function(params) {
   res       = data.frame(deff, N_eff, power_exp)
   return(res)
 }
+

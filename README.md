@@ -1,5 +1,8 @@
 # partial-clustering-deffs
-R code for a simulation study to validate GEE-based design effects for partially clustered trials. The accompanying manuscript is currently in preparation.
+R code for a simulation study to validate GEE-based design effects for partially clustered trials to accompany the paper:
+
+Lange KM, Kasza J, Sullivan TR, Yelland LN. Sample size calculations for partially clustered trials. Statistics in Medicine. 15 July 2025. [doi: 10.1002/sim.70172](https://doi.org/10.1002/sim.70172)
+
 
 # Files
 **R/**: R functions and simulation scenarios
